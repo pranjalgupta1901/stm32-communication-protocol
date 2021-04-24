@@ -1,0 +1,83 @@
+#include "stm32f4xx_hal.h"
+#include "main.h"
+void tim_init(void);
+void gpio_init(void);
+
+TIM_HandleTypeDef tim6;
+
+int main(void)
+{
+	HAL_Init();
+
+	RCC_OscInitTypeDef osc_config;
+	RCC_ClkInitTypeDef clk_config;
+
+	osc_config.OscillatorType =  RCC_OSCILLATORTYPE_HSE;
+	osc_config.HSIState = RCC_HSI_OFF;
+	osc_config.HSEState = RCC_HSE_ON;
+	osc_config.HSICalibrationValue = 16;
+	osc_config.PLL.PLLSource = RCC_PLLSOURCE_HSE ;
+	osc_config.PLL.PLLM = 8;
+	osc_config.PLL.PLLN = 336;
+	osc_config.PLL.PLLP = 2;
+	osc_config.PLL.PLLQ = 2;
+	osc_config.PLL.PLLState = RCC_PLL_ON;
+
+
+	if(HAL_RCC_OscConfig(&osc_config)!= HAL_OK)
+	{
+		while(1);
+	}
+
+	clk_config.ClockType = RCC_CLOCKTYPE_SYSCLK  |   RCC_CLOCKTYPE_HCLK  |        RCC_CLOCKTYPE_PCLK1  |     RCC_CLOCKTYPE_PCLK2;
+	clk_config.SYSCLKSource  = RCC_SYSCLKSOURCE_PLLCLK  ;
+	clk_config.AHBCLKDivider = 4;
+	clk_config.APB1CLKDivider = 4;
+	clk_config.APB2CLKDivider = 2;
+
+	if(HAL_RCC_ClockConfig(&clk_config, FLASH_ACR_LATENCY_5WS))
+	{
+		while(1);
+	}
+	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);                       // why systick beccause we have modified the hclk
+	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
+
+	gpio_init();
+	tim_init();
+
+
+	HAL_TIM_Base_Start(&tim6);
+
+	while(1)
+	{
+		while(!(TIM6->SR & (1<<0)));
+		TIM6->SR=0;
+		HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_12);
+	}
+
+
+
+    while(1);
+}
+
+
+void tim_init(void)
+{
+	tim6.Instance = TIM6;
+	tim6.Init.Prescaler = 1000;
+	tim6.Init.Period = 21000;
+	if(HAL_TIM_Base_Init(&tim6) != HAL_OK)
+	{
+		while(1);
+	}
+}
+
+void gpio_init(void)
+{
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+	GPIO_InitTypeDef gpio;
+	gpio.Pin = GPIO_PIN_12;
+	gpio.Mode = GPIO_MODE_OUTPUT_PP ;
+	HAL_GPIO_Init(GPIOD,&gpio);
+}
+
