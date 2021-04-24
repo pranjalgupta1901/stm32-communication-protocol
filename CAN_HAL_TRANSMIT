@@ -1,0 +1,152 @@
+#include"stm32f4xx_hal.h"
+void pll_config(void);
+void CAN_Init(void);
+void can_tx(void);
+void can_rx(void);
+void CAN_FifoConfig(void);
+
+
+CAN_HandleTypeDef hcan1;
+CAN_TxHeaderTypeDef can1Tx;
+CAN_RxHeaderTypeDef can1Rx;
+
+int main(void)
+{
+	uint8_t data[5] = { 'h','e','l', 'l', 'o'};
+
+    uint32_t TxMailbox,RxMailbox;
+    uint8_t adata[6];
+	HAL_Init();
+	pll_config();
+	CAN_Init();
+	CAN_FifoConfig();
+
+    if(HAL_CAN_Start(&hcan1)!=HAL_OK)
+    {
+    	while(1);
+    }
+	can_tx();
+
+	if(HAL_CAN_AddTxMessage(&hcan1, &can1Tx,data, &TxMailbox)!= HAL_OK)
+	{
+		while(1);
+	}
+	while(HAL_CAN_IsTxMessagePending(&hcan1, TxMailbox));
+
+	can_rx();
+    while(!(HAL_CAN_GetRxFifoFillLevel(&hcan1, CAN_RX_FIFO0)));
+    if(HAL_CAN_GetRxMessage(&hcan1,CAN_RX_FIFO0 , &can1Rx, adata)!=HAL_OK)
+    {
+    	while(1);
+    }
+
+	while(1);
+	return 0;
+}
+
+void CAN_Init(void)
+{
+	hcan1.Instance = CAN1;
+	hcan1.Init.Mode = CAN_MODE_LOOPBACK;
+	hcan1.Init.AutoBusOff = DISABLE;
+	hcan1.Init.AutoRetransmission = ENABLE;
+	hcan1.Init.AutoWakeUp = ENABLE;
+	hcan1.Init.ReceiveFifoLocked = DISABLE;
+	hcan1.Init.TimeTriggeredMode = DISABLE;
+	hcan1.Init.TransmitFifoPriority = DISABLE;
+
+
+	hcan1.Init.Prescaler = 5;
+	hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
+	hcan1.Init.TimeSeg1 = CAN_BS1_8TQ;
+	hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
+
+	if(HAL_CAN_Init(&hcan1)!=HAL_OK)
+	{
+		while(1);
+	}
+}
+
+
+void pll_config(void)
+{
+	    RCC_OscInitTypeDef osc_config;
+		RCC_ClkInitTypeDef clk_config;
+
+		osc_config.OscillatorType =  RCC_OSCILLATORTYPE_HSE;
+		osc_config.HSIState = RCC_HSI_OFF;
+		osc_config.HSEState = RCC_HSE_ON;
+		osc_config.PLL.PLLSource = RCC_PLLSOURCE_HSE ;
+		osc_config.PLL.PLLM = 8;
+		osc_config.PLL.PLLN = 100;
+		osc_config.PLL.PLLP = 2;
+		osc_config.PLL.PLLQ = 2;
+		osc_config.PLL.PLLState = RCC_PLL_ON;
+
+
+		if(HAL_RCC_OscConfig(&osc_config)!= HAL_OK)
+		{
+			while(1);
+		}
+
+		clk_config.ClockType = RCC_CLOCKTYPE_SYSCLK  |   RCC_CLOCKTYPE_HCLK  |        RCC_CLOCKTYPE_PCLK1  |     RCC_CLOCKTYPE_PCLK2;
+		clk_config.SYSCLKSource  = RCC_SYSCLKSOURCE_PLLCLK  ;
+		clk_config.AHBCLKDivider = 1;
+		clk_config.APB1CLKDivider = RCC_HCLK_DIV2;
+		clk_config.APB2CLKDivider = RCC_HCLK_DIV8;
+
+
+		if(HAL_RCC_ClockConfig(&clk_config, FLASH_ACR_LATENCY_1WS)!=HAL_OK)
+		{
+			while(1);
+		}
+		uint32_t freq,FREQ;
+				freq=HAL_RCC_GetPCLK1Freq();
+				FREQ = HAL_RCC_GetHCLKFreq();
+;
+		HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);                       // why systick beccause we have modified the hclk
+		HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
+
+}
+
+
+
+
+void can_tx(void)
+{
+   can1Tx.StdId = 0x05CA;
+   can1Tx.IDE = CAN_ID_STD;
+   can1Tx.RTR = CAN_RTR_DATA;
+   can1Tx.DLC = 5;
+   can1Tx.TransmitGlobalTime = DISABLE;
+}
+
+
+void CAN_FifoConfig(void)
+{
+	CAN_FilterTypeDef can_fifo;
+
+
+	can_fifo.FilterIdHigh = 0x0000;
+	can_fifo.FilterIdLow = 0x0000;
+	can_fifo.FilterMaskIdHigh = 0x0000;
+	can_fifo.FilterMaskIdLow = 0x0000;
+	can_fifo.FilterBank = 13;
+	can_fifo.FilterMode = CAN_FILTERMODE_IDMASK;
+	can_fifo.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	can_fifo.FilterActivation = CAN_FILTER_ENABLE;
+
+	if(HAL_CAN_ConfigFilter(&hcan1, &can_fifo)!=HAL_OK)
+	{
+		while(1);
+	}
+
+}
+
+void can_rx(void)
+{
+	can1Rx.IDE = CAN_ID_STD;
+	can1Rx.StdId = 0x05CA;
+	can1Rx.RTR = CAN_RTR_REMOTE;
+	can1Rx.DLC = 5;
+}
